@@ -2,16 +2,8 @@
 import KinectPV2.KJoint;
 import KinectPV2.*;
 import org.influxdb.*;
-//import org.influxdb.InfluxDB;
-//import org.influxdb.InfluxDBFactory;
-//import org.influxdb.InfluxDB.LogLevel;
-//import org.influxdb.dto.BatchPoints;
-//import org.influxdb.dto.Point;
-//import org.influxdb.dto.Pong;
-//import org.influxdb.dto.Query;
-//import org.influxdb.dto.QueryResult;
-//import org.influxdb.InfluxDB.ConsistencyLevel;
-//import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.BlockingQueue;
 
 KinectPV2 kinect;
  InfluxDB influxDB;
@@ -25,40 +17,137 @@ void setup() {
   kinect.enableColorImg(true);
   influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8086", "influxdb", "3c3029a818feb378");
   kinect.init();
+  BlockingQueue queue = new ArrayBlockingQueue<>(5);
+        
+        // The two threads will access the same queue, in order
+        // to test its blocking capabilities.
+  Thread producer = new Thread(new Producer(queue));
+  Thread consumer = new Thread(new Consumer(queue));
+        
+  producer.start();
+  consumer.start();
  
 }
+
+
+
+int JointNames[] = {
+  "SpineBase",
+  "SpineMid",
+  "Neck",
+  "Head",
+  "ShoulderLeft",
+  "ElbowLeft",
+  "WristLeft",
+  "HandLeft",
+  "ShoulderRight",
+  "ElbowRight",
+  "HandRight",
+  "HipLeft",
+  "KneeLeft",
+  "AnkleLeft",
+  "FootLeft",
+  "HipRight",
+  "KneeRight",
+  "AnkleRight",
+  "FootRight",
+  "SpineShoulder",
+  "HandTipLeft",
+  "ThumbLeft",
+  "HandTipRight",
+  "ThumbRight"
+};
+
+
+public class Producer implements Runnable{
+    
+    private BlockingQueue queue;
+    
+    public Producer(BlockingQueue queue) {
+        this.queue = queue;
+    }
+
+    @Override
+    public void run() {
+        
+        // We are adding elements using offer() in order to check if
+        // it actually managed to insert them.
+        for (int i = 0; i < 8; i++) {
+            System.out.println("Trying to add to queue: String " + i +
+                    " and the result was " + queue.offer("String " + i));
+            
+            try {  
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+
+public class Consumer implements Runnable{
+    
+    private BlockingQueue queue;
+    
+    public Consumer(BlockingQueue queue) {
+        this.queue = queue;
+    }
+
+    @Override
+    public void run() {
+        
+        // As long as there are empty positions in our array,
+        // we want to check what's going on.
+        while (queue.remainingCapacity() > 0) {
+            System.out.println("Queue size: " + queue.size() +
+                    ", remaining capacity: " + queue.remainingCapacity());
+            
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+org.influxdb.dto.Point makePoint(KJoint[] joints , string jointType, float time){
+
+     int jointIndex = KinectPV2.class.getField("JointType_"+jointType).getInt(null);
+
+     org.influxdb.dto.Point point1 = org.influxdb.dto.Point.measurement(jointType)
+                        .time(time, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        .field("x", joints[jointIndex].getX())
+                        .field("y",joints[jointIndex].getY())
+                        .field("z", joints[jointIndex].getZ())
+                        .build();
+
+    return point1;
+}
+
+
 
 void logToInflux(ArrayList<KSkeleton> skeletonArray){
    //print("connecting");
   //InfluxDB influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8083", "SuperLiftBro", "squatbooty");
- 
-  String dbName = "SuperLiftBro";
+
+  float time = System.currentTimeMillis()
    //individual JOINTS
   for (int i = 0; i < skeletonArray.size(); i++) {
     KSkeleton skeleton = (KSkeleton) skeletonArray.get(i);
    if (skeleton.isTracked()) {
      KJoint[] joints = skeleton.getJoints();
      BatchPoints batchPoints = BatchPoints
-                     .database(dbName)
+                     .database("SuperLiftBro")
                      //.tag("async", "true")
                      //.retentionPolicy("default")
                      //.consistency(org.influxdb.InfluxDB.ConsistencyLevel.ONE)
                      .build();
-     org.influxdb.dto.Point point1 = org.influxdb.dto.Point.measurement("KinectPV2.JointType_HandRight")
-                        .time(System.currentTimeMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)
-                        .field("x", joints[KinectPV2.JointType_HandRight].getX())
-                        .field("y",joints[KinectPV2.JointType_HandRight].getY())
-                        .field("z", joints[KinectPV2.JointType_HandRight].getZ())
-                        .build();
-     org.influxdb.dto.Point point2 = org.influxdb.dto.Point.measurement("KinectPV2.JointType_HandLeft")
-                        .time(System.currentTimeMillis(), java.util.concurrent.TimeUnit.MILLISECONDS)
-                        .field("x", joints[KinectPV2.JointType_HandLeft].getX())
-                        .field("y",joints[KinectPV2.JointType_HandLeft].getY())
-                        .field("z", joints[KinectPV2.JointType_HandLeft].getZ())
-                        .build();
-                     
-     batchPoints.point(point1);
-     batchPoints.point(point2);
+      for (int j = 0; j < KinectPV2.JointType_Count; i++) {
+
+                     batchPoints.point(makePoint(joints,JointNames[j],time);
+     }
      try{
      influxDB.write(batchPoints);
      }
@@ -66,9 +155,7 @@ void logToInflux(ArrayList<KSkeleton> skeletonArray){
        
          println("Exception: " + e.getMessage());
          e.printStackTrace();
-         
          return;
-     
      }
      //println("Write to inlfux ok");
    }
