@@ -8,26 +8,6 @@ import java.util.concurrent.BlockingQueue;
 KinectPV2 kinect;
  InfluxDB influxDB;
 
-void setup() {
-  size(1280, 720, P3D);
-
-  kinect = new KinectPV2(this);
-
-  kinect.enableSkeletonColorMap(true);
-  kinect.enableColorImg(true);
-  influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8086", "influxdb", "3c3029a818feb378");
-  kinect.init();
-  BlockingQueue queue = new ArrayBlockingQueue<>(5);
-        
-        // The two threads will access the same queue, in order
-        // to test its blocking capabilities.
-  Thread producer = new Thread(new Producer(queue));
-  Thread consumer = new Thread(new Consumer(queue));
-        
-  producer.start();
-  consumer.start();
- 
-}
 
 
 
@@ -161,6 +141,30 @@ void logToInflux(ArrayList<KSkeleton> skeletonArray){
    }
   }
 }
+
+
+void setup() {
+  size(1280, 720, P3D);
+
+  kinect = new KinectPV2(this);
+
+  kinect.enableSkeletonColorMap(true);
+  kinect.enableColorImg(true);
+  influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8086", "influxdb", "3c3029a818feb378");
+  kinect.init();
+  BlockingQueue queue = new ArrayBlockingQueue<>(5);
+        
+  // The two threads will access the same queue, in order
+  // to test its blocking capabilities.
+  Thread producer = new Thread(new Producer(queue));
+  Thread consumer = new Thread(new Consumer(queue));
+        
+  producer.start();
+  consumer.start();
+ 
+}
+
+
 
 void draw() {
   background(0);
