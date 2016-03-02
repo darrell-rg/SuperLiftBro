@@ -2,20 +2,16 @@ package org.superliftbro;
 
 //import processing.core.PApplet;
 
-import org.influxdb.dto.BatchPoints;
-import processing.core.*;
-import processing.data.*;
-import processing.event.*;
-import processing.opengl.*;
-
-
 import KinectPV2.KJoint;
-import KinectPV2.*;
-import org.influxdb.*;
+import KinectPV2.KSkeleton;
+import KinectPV2.KinectPV2;
+import org.influxdb.InfluxDB;
+import org.influxdb.InfluxDBFactory;
+import org.influxdb.dto.BatchPoints;
+import processing.core.PApplet;
 
 import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.BlockingQueue;
 
 
@@ -35,148 +31,10 @@ public class Arm extends PApplet {
 
 
     KinectPV2 kinect;
-    InfluxDB influxDB;
+
+    BlockingQueue queue;
 
 
-
-
-    java.lang.String JointNames[] = {
-            "SpineBase",
-            "SpineMid",
-            "Neck",
-            "Head",
-            "ShoulderLeft",
-            "ElbowLeft",
-            "WristLeft",
-            "HandLeft",
-            "ShoulderRight",
-            "ElbowRight",
-            "HandRight",
-            "HipLeft",
-            "KneeLeft",
-            "AnkleLeft",
-            "FootLeft",
-            "HipRight",
-            "KneeRight",
-            "AnkleRight",
-            "FootRight",
-            "SpineShoulder",
-            "HandTipLeft",
-            "ThumbLeft",
-            "HandTipRight",
-            "ThumbRight"
-    };
-
-
-    public class Producer implements Runnable{
-
-        private BlockingQueue queue;
-
-        public Producer(BlockingQueue queue) {
-            this.queue = queue;
-        }
-
-        @Override
-        public void run() {
-
-            // We are adding elements using offer() in order to check if
-            // it actually managed to insert them.
-            for (int i = 0; i < 8; i++) {
-                System.out.println("Trying to add to queue: String " + i +
-                        " and the result was " + queue.offer("String " + i));
-
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-
-    public class Consumer implements Runnable{
-
-        private BlockingQueue queue;
-
-        public Consumer(BlockingQueue queue) {
-            this.queue = queue;
-        }
-
-        @Override
-        public void run() {
-
-            // As long as there are empty positions in our array,
-            // we want to check what's going on.
-            while (queue.remainingCapacity() > 0) {
-                System.out.println("Queue size: " + queue.size() +
-                        ", remaining capacity: " + queue.remainingCapacity());
-
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    org.influxdb.dto.Point makePoint(KJoint[] joints , String jointType, long time){
-
-        int jointIndex = 0;
-        try {
-            jointIndex = KinectPV2.class.getField("JointType_"+jointType).getInt(null);
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
-
-        org.influxdb.dto.Point point1 = org.influxdb.dto.Point.measurement(jointType)
-                .time(time, java.util.concurrent.TimeUnit.MILLISECONDS)
-                .field("x", joints[jointIndex].getX())
-                .field("y",joints[jointIndex].getY())
-                .field("z", joints[jointIndex].getZ())
-                .build();
-
-        return point1;
-    }
-
-
-
-    void logToInflux(ArrayList<KSkeleton> skeletonArray){
-        //print("connecting");
-        //InfluxDB influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8083", "SuperLiftBro", "squatbooty");
-
-        long time = System.currentTimeMillis();
-        //individual JOINTS
-        for (int i = 0; i < skeletonArray.size(); i++) {
-            KSkeleton skeleton = (KSkeleton) skeletonArray.get(i);
-            if (skeleton.isTracked()) {
-                KJoint[] joints = skeleton.getJoints();
-                BatchPoints batchPoints = BatchPoints
-                        .database("SuperLiftBro")
-                        //.tag("async", "true")
-                        //.retentionPolicy("default")
-                        //.consistency(org.influxdb.InfluxDB.ConsistencyLevel.ONE)
-                        .build();
-                for (int j = 0; j < KinectPV2.JointType_Count; i++) {
-
-                    batchPoints.point(makePoint(joints,JointNames[j],time));
-                }
-                try{
-                    influxDB.write(batchPoints);
-                }
-                catch(Exception e){
-
-                    println("Exception: " + e.getMessage());
-                    e.printStackTrace();
-                    return;
-                }
-                //println("Write to inlfux ok");
-            }
-        }
-    }
 
 
 
@@ -280,24 +138,24 @@ public class Arm extends PApplet {
         }
     }
 
+    public void settings() {  size(1280, 720, P3D); }
 
     public void setup() {
-        size(1280, 720, P3D);
+//        size(1280, 720, P3D);
 
         kinect = new KinectPV2(this);
 
         kinect.enableSkeletonColorMap(true);
         kinect.enableColorImg(true);
-        influxDB = InfluxDBFactory.connect("https://gigawatt-mcfly-77.c.influxdb.com:8086", "influxdb", "3c3029a818feb378");
         kinect.init();
         BlockingQueue queue = new ArrayBlockingQueue<>(5);
 
         // The two threads will access the same queue, in order
         // to test its blocking capabilities.
-        Thread producer = new Thread(new Producer(queue));
+//        Thread producer = new Thread(new Producer(queue));
         Thread consumer = new Thread(new Consumer(queue));
 
-        producer.start();
+//        producer.start();
         consumer.start();
 
     }
@@ -310,8 +168,12 @@ public class Arm extends PApplet {
         image(kinect.getColorImage(), 0, 0, width, height);
 
         ArrayList<KSkeleton> skeletonArray =  kinect.getSkeletonColorMap();
-        logToInflux(skeletonArray);
-        //logToInflux();
+        if (queue.remainingCapacity() > 0) {
+            queue.offer(skeletonArray);
+        }else
+        {
+
+        }
         //individual JOINTS
         for (int i = 0; i < skeletonArray.size(); i++) {
             KSkeleton skeleton = (KSkeleton) skeletonArray.get(i);
@@ -334,14 +196,11 @@ public class Arm extends PApplet {
         }
 
         fill(255, 0, 0);
-        text(frameRate, 50, 50);
+    text(frameRate, 50, 50);
     }
-
-
-
-    public void settings() {  size(1280, 720); }
 
     static public void main(String[] args) {
         PApplet.main(Arm.class.getName());
     }
+
 }
