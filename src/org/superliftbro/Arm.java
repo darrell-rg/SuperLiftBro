@@ -15,28 +15,20 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 
-
 public class Arm extends PApplet {
 
     /**
      * Arm.
-     *
+     * <p>
      * The angle of each segment is controlled with the mouseX and
      * mouseY position. The transformations applied to the first segment
      * are also applied to the second segment because they are inside
      * the same pushMatrix() and popMatrix() group.
      */
 
-
-
-
     KinectPV2 kinect;
 
     BlockingQueue queue;
-
-
-
-
 
     //DRAW BODY
     void drawBody(KJoint[] joints) {
@@ -122,7 +114,7 @@ public class Arm extends PApplet {
      KinectPV2.HandState_NotTracked
      */
     void handState(int handState) {
-        switch(handState) {
+        switch (handState) {
             case KinectPV2.HandState_Open:
                 fill(0, 255, 0);
                 break;
@@ -138,7 +130,9 @@ public class Arm extends PApplet {
         }
     }
 
-    public void settings() {  size(1280, 720, P3D); }
+    public void settings() {
+        size(1280, 720, P3D);
+    }
 
     public void setup() {
 //        size(1280, 720, P3D);
@@ -161,31 +155,34 @@ public class Arm extends PApplet {
     }
 
 
-
     public void draw() {
         background(0);
 
         image(kinect.getColorImage(), 0, 0, width, height);
 
-        ArrayList<KSkeleton> skeletonArray =  kinect.getSkeletonColorMap();
-        if (queue.remainingCapacity() > 0) {
-            queue.offer(skeletonArray);
-        }else
-        {
-
+        ArrayList<KSkeleton> skeletonArray = kinect.getSkeletonColorMap();
+        ArrayList<KSkeleton> skeleton3DArray = kinect.getSkeleton3d();
+        for (int i = 0; i < skeleton3DArray.size(); i++) {
+            KSkeleton skeleton = (KSkeleton) skeletonArray.get(i);
+            if (skeleton.isTracked()) {
+                if (i == 0) {
+                    queue.offer(skeleton);
+                }
+            }
         }
+
         //individual JOINTS
         for (int i = 0; i < skeletonArray.size(); i++) {
             KSkeleton skeleton = (KSkeleton) skeletonArray.get(i);
             if (skeleton.isTracked()) {
                 KJoint[] joints = skeleton.getJoints();
 
-                int col  = skeleton.getIndexColor();
+                int col = skeleton.getIndexColor();
                 fill(col);
                 stroke(col);
 
                 pushMatrix();
-                scale(width/1920.0f);
+                scale(width / 1920.0f);
                 drawBody(joints);
 
                 //draw different color for each hand state
@@ -196,7 +193,7 @@ public class Arm extends PApplet {
         }
 
         fill(255, 0, 0);
-    text(frameRate, 50, 50);
+        text(frameRate, 50, 50);
     }
 
     static public void main(String[] args) {
